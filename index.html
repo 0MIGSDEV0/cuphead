@@ -2,235 +2,252 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Minecraft 3D - HTML/CSS/JS</title>
+<title>The Binding of Isaac - Mini Clone (HTML/JS)</title>
 <style>
-    body { margin:0; overflow:hidden; background:#000; font-family:Arial; }
-    #info {
-        position: absolute; top: 10px; left: 10px; color: white; z-index: 100;
-        background: rgba(0,0,0,0.5); padding: 10px; border-radius: 5px;
+    body { margin:0; overflow:hidden; background:#111; color:#fff; font-family:Arial; }
+    canvas { display:block; margin:0 auto; image-rendering: pixelated; }
+    #ui {
+        position: absolute; top: 10px; left: 10px; z-index: 100;
+        background: rgba(0,0,0,0.6); padding: 10px 15px; border-radius: 8px;
     }
-    canvas { display: block; }
+    #gameOver {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: rgba(0,0,0,0.9); padding: 30px; border-radius: 15px; text-align: center;
+        display: none; font-size: 32px;
+    }
 </style>
 </head>
 <body>
-<div id="info">
-    <strong>Minecraft 3D Simples</strong><br>
-    WASD = mover | Mouse = olhar | Espaço = pular<br>
-    Clique esquerdo = remover bloco | Clique direito = colocar bloco (grama)
+
+<div id="ui">
+    <strong>The Binding of Isaac</strong> - Mini Clone<br>
+    Vida: <span id="health">3</span> | Score: <span id="score">0</span><br>
+    WASD = mover | Mouse = mirar e atirar
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<canvas id="game" width="800" height="600"></canvas>
+
+<div id="gameOver">
+    <h1>GAME OVER</h1>
+    <p>Score final: <span id="finalScore">0</span></p>
+    <button onclick="location.reload()">Tentar novamente</button>
+</div>
+
 <script>
-// ========================== CONFIGURAÇÃO BÁSICA ==========================
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // céu azul
-scene.fog = new THREE.Fog(0x87ceeb, 50, 200);
+// ====================== CONFIGURAÇÃO ======================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = 800, H = 600;
+canvas.width = W; canvas.height = H;
 
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-document.body.appendChild(renderer.domElement);
-
-// Iluminação
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambientLight);
-const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-directionalLight.position.set(50, 100, 30);
-directionalLight.castShadow = true;
-scene.add(directionalLight);
-
-// ========================== MUNDO VOXEL ==========================
-const blockSize = 1;
-const worldSize = 20; // mundo 20x20 blocos
-const worldHeight = 8;
-
-const blocks = new Map(); // chave: "x,y,z" → mesh
-
-const textures = {
-    grass: 0x00ff00,
-    dirt: 0x8b4513,
-    stone: 0x808080
+let player = {
+    x: W/2, y: H/2,
+    size: 20,
+    speed: 4,
+    health: 3,
+    color: '#ffccaa'
 };
 
-// Gerar terreno simples (colinas)
-function generateWorld() {
-    for (let x = -worldSize; x < worldSize; x++) {
-        for (let z = -worldSize; z < worldSize; z++) {
-            const height = Math.floor(3 + Math.sin(x/5) * 2 + Math.cos(z/5) * 2);
-            
-            for (let y = 0; y < height; y++) {
-                let type = 'stone';
-                if (y === height - 1) type = 'grass';
-                else if (y >= height - 3) type = 'dirt';
+let keys = {};
+let mouse = { x: W/2, y: H/2 };
+let bullets = [];
+let enemies = [];
+let particles = [];
+let score = 0;
+let gameRunning = true;
+
+// ====================== INPUT ======================
+window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+
+canvas.addEventListener('mousemove', e => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - rect.left;
+    mouse.y = e.clientY - rect.top;
+});
+
+canvas.addEventListener('mousedown', () => {
+    if (!gameRunning) return;
+    shoot();
+});
+
+function shoot() {
+    const dx = mouse.x - player.x;
+    const dy = mouse.y - player.y;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    
+    bullets.push({
+        x: player.x,
+        y: player.y,
+        vx: (dx / dist) * 10,
+        vy: (dy / dist) * 10,
+        size: 8,
+        life: 60
+    });
+}
+
+// ====================== INIMIGOS ======================
+function spawnEnemy() {
+    if (enemies.length > 8) return;
+    
+    const side = Math.floor(Math.random()*4);
+    let ex, ey;
+    
+    if (side === 0) { ex = Math.random()*W; ey = -30; }
+    else if (side === 1) { ex = W+30; ey = Math.random()*H; }
+    else if (side === 2) { ex = Math.random()*W; ey = H+30; }
+    else { ex = -30; ey = Math.random()*H; }
+    
+    enemies.push({
+        x: ex, y: ey,
+        size: 22,
+        speed: 1.8 + Math.random()*0.8,
+        health: 2,
+        color: '#aa4444'
+    });
+}
+
+// ====================== PARTÍCULAS (sangue/lágrimas) ======================
+function createParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 1 + Math.random() * 4;
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 25 + Math.random()*15,
+            color
+        });
+    }
+}
+
+// ====================== LOOP PRINCIPAL ======================
+let lastSpawn = 0;
+
+function gameLoop() {
+    if (!gameRunning) return;
+    
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fillRect(0, 0, W, H);
+    
+    // Movimento do jogador
+    if (keys['w'] && player.y > 30) player.y -= player.speed;
+    if (keys['s'] && player.y < H-30) player.y += player.speed;
+    if (keys['a'] && player.x > 30) player.x -= player.speed;
+    if (keys['d'] && player.x < W-30) player.x += player.speed;
+    
+    // Desenhar jogador (Isaac simplificado)
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x - player.size/2, player.y - player.size/2, player.size, player.size);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(player.x - 5, player.y - 5, 4, 4); // olho esquerdo
+    ctx.fillRect(player.x + 1, player.y - 5, 4, 4); // olho direito
+    
+    // Balas
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.life--;
+        
+        ctx.fillStyle = '#aaccff';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.size/2, 0, Math.PI*2);
+        ctx.fill();
+        
+        if (b.life <= 0 || b.x < 0 || b.x > W || b.y < 0 || b.y > H) {
+            bullets.splice(i, 1);
+        }
+    }
+    
+    // Inimigos
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const e = enemies[i];
+        
+        // IA simples: vai na direção do jogador
+        const dx = player.x - e.x;
+        const dy = player.y - e.y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if (dist > 0) {
+            e.x += (dx / dist) * e.speed;
+            e.y += (dy / dist) * e.speed;
+        }
+        
+        ctx.fillStyle = e.color;
+        ctx.fillRect(e.x - e.size/2, e.y - e.size/2, e.size, e.size);
+        
+        // Colisão com balas
+        for (let j = bullets.length - 1; j >= 0; j--) {
+            const b = bullets[j];
+            const dx2 = b.x - e.x;
+            const dy2 = b.y - e.y;
+            if (dx2*dx2 + dy2*dy2 < (e.size/2 + b.size/2)**2) {
+                e.health--;
+                bullets.splice(j, 1);
+                createParticles(b.x, b.y, '#ff6666', 8);
                 
-                createBlock(x, y, z, type);
+                if (e.health <= 0) {
+                    createParticles(e.x, e.y, '#aa0000', 20);
+                    enemies.splice(i, 1);
+                    score += 10;
+                    break;
+                }
+            }
+        }
+        
+        // Colisão com jogador
+        const pdx = player.x - e.x;
+        const pdy = player.y - e.y;
+        if (pdx*pdx + pdy*pdy < (player.size/2 + e.size/2)**2) {
+            player.health--;
+            createParticles(player.x, player.y, '#ff0000', 15);
+            enemies.splice(i, 1);
+            
+            document.getElementById('health').textContent = player.health;
+            
+            if (player.health <= 0) {
+                gameRunning = false;
+                document.getElementById('finalScore').textContent = score;
+                document.getElementById('gameOver').style.display = 'block';
             }
         }
     }
-}
-
-function createBlock(x, y, z, type) {
-    const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
-    const material = new THREE.MeshLambertMaterial({ color: textures[type] });
-    const cube = new THREE.Mesh(geometry, material);
     
-    cube.position.set(x * blockSize, y * blockSize, z * blockSize);
-    cube.castShadow = true;
-    cube.receiveShadow = true;
+    // Spawn de inimigos
+    if (Date.now() - lastSpawn > 1200) {
+        spawnEnemy();
+        lastSpawn = Date.now();
+    }
     
-    scene.add(cube);
-    blocks.set(`${x},${y},${z}`, cube);
-}
-
-// Remover bloco
-function removeBlock(x, y, z) {
-    const key = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
-    const block = blocks.get(key);
-    if (block) {
-        scene.remove(block);
-        blocks.delete(key);
-    }
-}
-
-// Colocar bloco
-function placeBlock(x, y, z) {
-    const key = `${Math.floor(x)},${Math.floor(y)},${Math.floor(z)}`;
-    if (!blocks.has(key)) {
-        createBlock(Math.floor(x), Math.floor(y), Math.floor(z), 'grass');
-    }
-}
-
-// ========================== CONTROLES ==========================
-let move = { forward: false, backward: false, left: false, right: false, jump: false };
-let velocity = new THREE.Vector3();
-let canJump = true;
-
-document.addEventListener('keydown', e => {
-    switch(e.code) {
-        case 'KeyW': move.forward = true; break;
-        case 'KeyS': move.backward = true; break;
-        case 'KeyA': move.left = true; break;
-        case 'KeyD': move.right = true; break;
-        case 'Space': if(canJump) { velocity.y = 12; canJump = false; } break;
-    }
-});
-
-document.addEventListener('keyup', e => {
-    switch(e.code) {
-        case 'KeyW': move.forward = false; break;
-        case 'KeyS': move.backward = false; break;
-        case 'KeyA': move.left = false; break;
-        case 'KeyD': move.right = false; break;
-    }
-});
-
-// Mouse look (pointer lock)
-let yaw = 0, pitch = 0;
-const sensitivity = 0.002;
-
-document.addEventListener('click', () => {
-    renderer.domElement.requestPointerLock();
-});
-
-document.addEventListener('mousemove', e => {
-    if (document.pointerLockElement) {
-        yaw -= e.movementX * sensitivity;
-        pitch -= e.movementY * sensitivity;
-        pitch = Math.max(-Math.PI/2, Math.min(Math.PI/2, pitch));
+    // Partículas
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life--;
+        p.vx *= 0.95;
+        p.vy *= 0.95;
         
-        camera.rotation.order = 'YXZ';
-        camera.rotation.set(pitch, yaw, 0);
-    }
-});
-
-// Clique para quebrar/colocar
-renderer.domElement.addEventListener('mousedown', e => {
-    if (!document.pointerLockElement) return;
-    
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(new THREE.Vector2(0,0), camera);
-    
-    const intersects = raycaster.intersectObjects(Array.from(blocks.values()));
-    
-    if (intersects.length > 0) {
-        const intersect = intersects[0];
-        const pos = intersect.point;
+        ctx.globalAlpha = p.life / 30;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, 6, 6);
         
-        if (e.button === 0) { // esquerdo = remover
-            removeBlock(pos.x - intersect.face.normal.x*0.5, 
-                        pos.y - intersect.face.normal.y*0.5, 
-                        pos.z - intersect.face.normal.z*0.5);
-        } 
-        else if (e.button === 2) { // direito = colocar
-            const placePos = intersect.point.add(intersect.face.normal.multiplyScalar(0.5));
-            placeBlock(placePos.x, placePos.y, placePos.z);
-        }
+        if (p.life <= 0) particles.splice(i, 1);
     }
-});
-
-// Prevenir menu do botão direito
-document.addEventListener('contextmenu', e => e.preventDefault());
-
-// ========================== FÍSICA E MOVIMENTO ==========================
-camera.position.set(0, 15, 30);
-
-function updateMovement(delta) {
-    const speed = 20 * delta;
-    const direction = new THREE.Vector3();
+    ctx.globalAlpha = 1;
     
-    if (move.forward) direction.z -= 1;
-    if (move.backward) direction.z += 1;
-    if (move.left) direction.x -= 1;
-    if (move.right) direction.x += 1;
+    // UI
+    document.getElementById('score').textContent = score;
     
-    direction.normalize();
-    
-    // Rotacionar direção conforme a câmera
-    direction.applyQuaternion(camera.quaternion);
-    direction.y = 0; // não voar
-    direction.normalize();
-    
-    velocity.x = direction.x * speed * 10;
-    velocity.z = direction.z * speed * 10;
-    
-    // Gravidade
-    velocity.y -= 30 * delta;
-    
-    camera.position.x += velocity.x * delta;
-    camera.position.z += velocity.z * delta;
-    camera.position.y += velocity.y * delta;
-    
-    // Colisão simples com o chão
-    if (camera.position.y < 8) {
-        camera.position.y = 8;
-        velocity.y = 0;
-        canJump = true;
-    }
+    requestAnimationFrame(gameLoop);
 }
 
-// ========================== ANIMAÇÃO ==========================
-const clock = new THREE.Clock();
+// Iniciar o jogo
+for (let i = 0; i < 3; i++) spawnEnemy();
+gameLoop();
 
-function animate() {
-    requestAnimationFrame(animate);
-    const delta = clock.getDelta();
-    
-    updateMovement(delta);
-    renderer.render(scene, camera);
-}
-
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-// Iniciar
-generateWorld();
-animate();
-
-alert("Clique na tela para ativar o mouse!\n\nControles:\nWASD - mover\nMouse - olhar\nEspaço - pular\nClique esquerdo - quebrar\nClique direito - colocar grama");
+alert("The Binding of Isaac - Mini Clone\n\nWASD = mover\nMouse = mirar e atirar\n\nSobreviva o máximo possível!");
 </script>
 </body>
 </html>
