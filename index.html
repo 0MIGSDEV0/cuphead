@@ -1,363 +1,666 @@
-<script>
-// ====================== SETUP ======================
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const W = 800, H = 600;
-
-let player = { x: W/2, y: H/2, size: 32, speed: 4.2, health: 3, invincible: 0 };
-let keys = {};
-let mouse = { x: W/2, y: H/2, down: false };
-let bullets = [];
-let bossBullets = [];
-let enemies = [];
-let particles = [];
-let score = 0;
-let killCount = 0;
-let bossSpawned = false;
-let gameRunning = true;
-let lastShot = 0;
-let lastBossShot = 0;
-
-// ====================== INPUT ======================
-window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
-canvas.addEventListener('mousemove', e => {
-    const rect = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - rect.left;
-    mouse.y = e.clientY - rect.top;
-});
-canvas.addEventListener('mousedown', () => mouse.down = true);
-canvas.addEventListener('mouseup', () => mouse.down = false);
-
-// ====================== TIRO DO JOGADOR ======================
-function shoot(angle) {
-    const now = Date.now();
-    if (now - lastShot < 160) return;
-    lastShot = now;
-  
-    bullets.push({
-        x: player.x,
-        y: player.y - 8,
-        vx: Math.cos(angle) * 11.5,
-        vy: Math.sin(angle) * 11.5,
-        life: 48,
-        size: 9
-    });
-  
-    createParticles(player.x, player.y - 12, '#aaddff', 5);
-}
-
-// ====================== TIRO DO BOSS ======================
-function bossShoot() {
-    if (!bossSpawned) return;
-    const now = Date.now();
-    if (now - lastBossShot < 1800) return;
-    lastBossShot = now;
-
-    const boss = enemies.find(e => e.isBoss);
-    if (!boss) return;
-
-    const directions = [0, Math.PI/2, Math.PI, -Math.PI/2];
-
-    directions.forEach(angle => {
-        bossBullets.push({
-            x: boss.x,
-            y: boss.y,
-            vx: Math.cos(angle) * 5.5,
-            vy: Math.sin(angle) * 5.5,
-            life: 90,
-            size: 14
-        });
-    });
-
-    createParticles(boss.x, boss.y, '#ff4444', 15);
-}
-
-// ====================== PARTÍCULAS ======================
-function createParticles(x, y, color, count) {
-    for (let i = 0; i < count; i++) {
-        const speed = 2 + Math.random() * 5;
-        const angle = Math.random() * Math.PI * 2;
-        particles.push({
-            x, y,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            life: 22 + Math.random() * 20,
-            color,
-            size: 4 + Math.random() * 7
-        });
-    }
-}
-
-// ====================== INIMIGOS ======================
-function spawnEnemy() {
-    if (enemies.length > 9 || bossSpawned) return;
-  
-    const angle = Math.random() * Math.PI * 2;
-    const dist = 360;
-    enemies.push({
-        x: player.x + Math.cos(angle) * dist,
-        y: player.y + Math.sin(angle) * dist,
-        size: 26,
-        speed: 1.7 + Math.random() * 0.6,
-        health: 3,
-        color: '#c22',
-        isBoss: false
-    });
-}
-
-function spawnBoss() {
-    if (bossSpawned) return;
-    bossSpawned = true;
-    enemies.push({
-        x: W/2,
-        y: 120,
-        size: 68,
-        speed: 1.1,
-        health: 45,
-        color: '#111111',
-        isBoss: true
-    });
-    createParticles(W/2, 120, '#ff0000', 60);
-    lastBossShot = Date.now();
-}
-
-// ====================== LOOP ======================
-function gameLoop() {
-    if (!gameRunning) return;
-  
-    ctx.fillStyle = '#1a0f08';
-    ctx.fillRect(0, 0, W, H);
-  
-    // Chão
-    ctx.fillStyle = '#3a2a1f';
-    for (let i = 0; i < 45; i++) {
-        ctx.fillRect((i*47)%W, (i*39)%H, 26, 26);
-    }
-
-    // Movimento jogador
-    let dx = 0, dy = 0;
-    if (keys['w']) dy -= 1;
-    if (keys['s']) dy += 1;
-    if (keys['a']) dx -= 1;
-    if (keys['d']) dx += 1;
-    if (dx !== 0 || dy !== 0) {
-        const len = Math.hypot(dx, dy);
-        player.x += (dx / len) * player.speed;
-        player.y += (dy / len) * player.speed;
-    }
-    player.x = Math.max(30, Math.min(W-30, player.x));
-    player.y = Math.max(30, Math.min(H-30, player.y));
-
-    // Tiro jogador
-    if (keys['arrowup']) shoot(-Math.PI/2);
-    if (keys['arrowdown']) shoot(Math.PI/2);
-    if (keys['arrowleft']) shoot(Math.PI);
-    if (keys['arrowright']) shoot(0);
-    if (mouse.down) {
-        const dxm = mouse.x - player.x;
-        const dym = mouse.y - player.y;
-        const angle = Math.atan2(dym, dxm);
-        shoot(angle);
-    }
-
-    if (bossSpawned) bossShoot();
-
-    // ====================== DESENHAR ISAAC (NOVO PIXEL ART) ======================
-    ctx.save();
-    ctx.translate(player.x, player.y);
-
-    // Corpo / Roupinha azul
-    ctx.fillStyle = '#2a5aa0';
-    ctx.fillRect(-13, 10, 26, 22);           // corpo
-
-    // Pernas
-    ctx.fillStyle = '#f4c090';
-    ctx.fillRect(-10, 28, 7, 12);
-    ctx.fillRect( 3, 28, 7, 12);
-
-    // Cabeça
-    ctx.fillStyle = '#f4c090';               // pele
-    ctx.fillRect(-15, -18, 30, 28);
-
-    // Cabelo laranja
-    ctx.fillStyle = '#e07020';
-    ctx.fillRect(-15, -22, 30, 10);
-
-    // Olhos
-    ctx.fillStyle = '#000';
-    ctx.fillRect(-10, -12, 7, 8);
-    ctx.fillRect( 3, -12, 7, 8);
-
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(-8, -11, 3, 3);
-    ctx.fillRect( 5, -11, 3, 3);
-
-    // Boca triste
-    ctx.fillStyle = '#000';
-    ctx.fillRect(-6, -2, 12, 2);
-
-    // Lágrimas (azul claro)
-    ctx.fillStyle = '#88ddff';
-    ctx.fillRect(-11, 0, 3, 8);
-    ctx.fillRect( 8, 0, 3, 8);
-
-    // Braços (simples)
-    ctx.fillStyle = '#f4c090';
-    ctx.fillRect(-18, 12, 6, 10);
-    ctx.fillRect(12, 12, 6, 10);
-
-    ctx.restore();
-
-    // ====================== TIROS DO JOGADOR ======================
-    for (let i = bullets.length-1; i >= 0; i--) {
-        const b = bullets[i];
-        b.x += b.vx; b.y += b.vy; b.life--;
-        const alpha = b.life / 48;
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.size/2 + 3, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#bbddff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.size/2, 0, Math.PI*2); ctx.fill();
-        ctx.globalAlpha = 1;
-
-        if (b.life <= 0 || b.x < -30 || b.x > W+30 || b.y < -30 || b.y > H+30) {
-            bullets.splice(i, 1);
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐍 JOGO DA COBRA - Fases • Pontos • Vidas • Ranking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        :root {
+            --neon: #22ff88;
         }
-    }
+        
+        body {
+            font-family: 'Press Start 2P', system-ui;
+        }
+        
+        .neon-text {
+            text-shadow: 
+                0 0 10px var(--neon),
+                0 0 20px var(--neon),
+                0 0 40px var(--neon);
+        }
+        
+        .screen {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        canvas {
+            border: 6px solid #22ff88;
+            box-shadow: 0 0 30px #22ff88;
+            image-rendering: pixelated;
+        }
+        
+        .hud {
+            font-family: 'Press Start 2P', system-ui;
+            text-shadow: 2px 2px 0 #000;
+        }
+    </style>
+</head>
+<body class="bg-zinc-950 text-white min-h-screen flex items-center justify-center overflow-hidden">
+    <!-- TELA DE LOGIN -->
+    <div id="login-screen" class="screen flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto px-6">
+        <div class="text-center mb-12">
+            <div class="text-8xl mb-4">🐍</div>
+            <h1 class="text-5xl neon-text tracking-widest mb-2">JOGO DA COBRA</h1>
+            <p class="text-emerald-400 text-xl">Fases • Pontos • Vidas • Ranking</p>
+        </div>
+        
+        <div class="bg-zinc-900 border-4 border-emerald-400 p-8 rounded-2xl w-full shadow-2xl">
+            <h2 class="text-2xl mb-8 text-center">ENTRAR NO JOGO</h2>
+            
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-emerald-300 text-sm mb-2">USUÁRIO</label>
+                    <input id="username" 
+                           type="text" 
+                           placeholder="Seu nome de jogador"
+                           class="w-full bg-black border-2 border-emerald-400 text-white px-6 py-4 rounded-xl text-lg focus:outline-none focus:border-white">
+                </div>
+                
+                <div>
+                    <label class="block text-emerald-300 text-sm mb-2">SENHA (qualquer coisa funciona)</label>
+                    <input id="password" 
+                           type="password" 
+                           value="1234"
+                           class="w-full bg-black border-2 border-emerald-400 text-white px-6 py-4 rounded-xl text-lg focus:outline-none focus:border-white">
+                </div>
+                
+                <button onclick="fazerLogin()"
+                        class="w-full bg-emerald-500 hover:bg-emerald-400 transition-colors py-6 text-2xl rounded-2xl font-bold tracking-widest">
+                    ENTRAR 🐍
+                </button>
+            </div>
+            
+            <p class="text-center text-zinc-500 text-xs mt-8">Tudo salvo no seu navegador • Perfeito para GitHub Pages</p>
+        </div>
+    </div>
 
-    // ====================== TIROS DO BOSS ======================
-    for (let i = bossBullets.length-1; i >= 0; i--) {
-        const b = bossBullets[i];
-        b.x += b.vx; b.y += b.vy; b.life--;
+    <!-- TELA DO MENU PRINCIPAL -->
+    <div id="menu-screen" class="screen hidden flex flex-col items-center justify-center min-h-screen w-full max-w-md mx-auto px-6">
+        <div class="text-center mb-12">
+            <div id="menu-user" class="text-emerald-400 mb-2 text-lg"></div>
+            <div class="text-7xl mb-4">🐍</div>
+            <h1 class="text-5xl neon-text">JOGO DA COBRA</h1>
+        </div>
+        
+        <div class="space-y-4 w-full max-w-xs">
+            <button onclick="iniciarJogo()" 
+                    class="w-full bg-emerald-500 hover:bg-emerald-400 transition-all py-8 text-3xl rounded-3xl font-bold flex items-center justify-center gap-4 shadow-xl">
+                <span>JOGAR</span>
+                <span class="text-5xl">▶</span>
+            </button>
+            
+            <button onclick="mostrarRanking()" 
+                    class="w-full bg-zinc-800 hover:bg-zinc-700 transition-all py-8 text-3xl rounded-3xl font-bold flex items-center justify-center gap-4">
+                🏆 RANKING
+            </button>
+            
+            <button onclick="fazerLogout()" 
+                    class="w-full bg-zinc-800 hover:bg-red-500/20 text-red-400 hover:text-red-400 transition-all py-8 text-3xl rounded-3xl font-bold">
+                SAIR
+            </button>
+        </div>
+        
+        <div class="mt-16 text-xs text-zinc-500 flex gap-8">
+            <div>Fase</div>
+            <div>Pontos</div>
+            <div>Vidas</div>
+            <div>Ranking</div>
+        </div>
+    </div>
 
-        ctx.globalAlpha = b.life / 90;
-        ctx.fillStyle = '#ff0000';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.size/2 + 2, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#ff6666';
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.size/2, 0, Math.PI*2); ctx.fill();
-        ctx.globalAlpha = 1;
+    <!-- TELA DO JOGO -->
+    <div id="game-screen" class="screen hidden w-full min-h-screen bg-black flex flex-col">
+        <!-- HUD superior -->
+        <div class="hud bg-zinc-900 border-b-4 border-emerald-400 px-6 py-4 flex items-center justify-between text-xl">
+            <div class="flex items-center gap-8">
+                <!-- Usuário -->
+                <div class="flex items-center gap-2">
+                    <span class="text-emerald-400">👾</span>
+                    <span id="hud-user" class="font-bold"></span>
+                </div>
+                
+                <!-- Fase -->
+                <div class="flex items-center gap-2">
+                    <span class="text-yellow-400">FASE</span>
+                    <span id="hud-fase" class="text-4xl font-bold text-yellow-400">01</span>
+                </div>
+                
+                <!-- Pontos -->
+                <div class="flex items-center gap-2">
+                    <span class="text-sky-400">⭐</span>
+                    <span id="hud-pontos" class="text-4xl font-bold text-sky-400">0000</span>
+                </div>
+            </div>
+            
+            <!-- Vidas -->
+            <div class="flex items-center gap-2">
+                <span id="hud-vidas" class="text-4xl flex"></span>
+            </div>
+            
+            <button onclick="pausarJogo()" 
+                    class="bg-zinc-800 hover:bg-white hover:text-black px-6 py-2 rounded-2xl text-sm font-bold transition-colors">
+                PAUSE
+            </button>
+        </div>
+        
+        <!-- Canvas do jogo -->
+        <div class="flex-1 flex items-center justify-center p-6 bg-zinc-950 relative">
+            <canvas id="game-canvas" width="520" height="520" class="bg-[#0a0a0a]"></canvas>
+            
+            <!-- Overlay de Level Up -->
+            <div id="level-up-overlay" 
+                 onclick="this.classList.add('hidden')"
+                 class="hidden absolute inset-0 flex items-center justify-center bg-black/80 text-6xl font-bold text-yellow-400 z-10 pointer-events-none">
+                <div class="text-center animate-pulse">
+                    FASE COMPLETA!<br>
+                    <span id="level-up-text" class="text-5xl text-white block mt-6"></span>
+                </div>
+            </div>
+            
+            <!-- Game Over overlay -->
+            <div id="game-over-overlay" class="hidden absolute inset-0 flex items-center justify-center bg-black/90 z-20">
+                <div class="text-center">
+                    <div class="text-red-500 text-8xl mb-8">💥 GAME OVER 💥</div>
+                    <p class="text-3xl mb-2">Pontuação final:</p>
+                    <p id="final-score" class="text-6xl text-sky-400 mb-12">0000</p>
+                    
+                    <div class="flex gap-6 justify-center">
+                        <button onclick="reiniciarJogo()" 
+                                class="bg-emerald-500 hover:bg-emerald-400 px-12 py-6 text-3xl rounded-3xl font-bold">
+                            JOGAR NOVAMENTE
+                        </button>
+                        <button onclick="voltarAoMenu()" 
+                                class="bg-zinc-700 hover:bg-zinc-600 px-12 py-6 text-3xl rounded-3xl font-bold">
+                            MENU
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Instruções rodapé -->
+        <div class="bg-zinc-900 text-xs text-emerald-300 px-6 py-3 flex justify-between items-center">
+            <div>↑ ↓ ← →  mover</div>
+            <div>Coma as maçãs 🍎 • Evite as paredes e a si mesmo!</div>
+            <div class="text-yellow-400">Fase atual: <span id="rodape-fase" class="font-bold">01</span></div>
+        </div>
+    </div>
 
-        if (player.invincible <= 0 && Math.hypot(player.x - b.x, player.y - b.y) < b.size/2 + 16) {
-            player.health -= 2;
-            player.invincible = 60;
-            createParticles(player.x, player.y, '#ff0000', 30);
-            document.getElementById('health').textContent = player.health;
+    <!-- TELA DE RANKING -->
+    <div id="ranking-screen" class="screen hidden flex flex-col min-h-screen w-full max-w-2xl mx-auto px-6 py-12">
+        <div class="flex justify-between items-center mb-8">
+            <h1 class="text-5xl neon-text">🏆 RANKING GLOBAL</h1>
+            <button onclick="voltarAoMenu()" 
+                    class="bg-zinc-800 hover:bg-zinc-700 px-8 py-4 rounded-3xl text-xl">← VOLTAR</button>
+        </div>
+        
+        <div class="bg-zinc-900 rounded-3xl overflow-hidden border-4 border-emerald-400">
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b-4 border-emerald-400 bg-zinc-950">
+                        <th class="text-left px-10 py-6 text-emerald-300">POSIÇÃO</th>
+                        <th class="text-left px-10 py-6 text-emerald-300">JOGADOR</th>
+                        <th class="text-right px-10 py-6 text-emerald-300">PONTOS</th>
+                    </tr>
+                </thead>
+                <tbody id="ranking-body" class="text-xl"></tbody>
+            </table>
+        </div>
+        
+        <div class="mt-8 text-center text-zinc-500 text-sm">
+            Ranking salvo no navegador • Limite de 10 jogadores
+            <button onclick="limparRanking()" class="ml-6 underline text-red-400 hover:text-red-300">Limpar ranking</button>
+        </div>
+    </div>
 
-            if (player.health <= 0) {
-                gameRunning = false;
-                document.getElementById('finalScore').textContent = score;
-                document.getElementById('gameOver').style.display = 'block';
+    <script>
+        // Configuração Tailwind
+        function initTailwind() {
+            return {
+                config(userConfig = {}) {
+                    return {
+                        content: [],
+                        theme: {
+                            extend: {},
+                        },
+                        plugins: [],
+                        ...userConfig,
+                    }
+                },
+                theme: {
+                    extend: {},
+                },
             }
-            bossBullets.splice(i, 1);
-            continue;
         }
+        initTailwind()
 
-        if (b.life <= 0 || b.x < -50 || b.x > W+50 || b.y < -50 || b.y > H+50) {
-            bossBullets.splice(i, 1);
+        // Variáveis globais do jogo
+        let canvas, ctx
+        let snake = []
+        let dx = 1
+        let dy = 0
+        let food = { x: 0, y: 0 }
+        let score = 0
+        let level = 1
+        let lives = 3
+        let foodsEatenThisLevel = 0
+        let gameInterval = null
+        let gameSpeed = 150
+        let isPaused = false
+        let currentUser = ''
+        let tileCount = 26
+        let gridSize = 20
+        
+        // Carregar ranking do localStorage
+        function getRanking() {
+            const ranking = localStorage.getItem('cobraRanking')
+            return ranking ? JSON.parse(ranking) : []
         }
-    }
-
-    // ====================== INIMIGOS ======================
-    for (let i = enemies.length-1; i >= 0; i--) {
-        const e = enemies[i];
-      
-        const dx = player.x - e.x;
-        const dy = player.y - e.y;
-        const dist = Math.hypot(dx, dy) || 1;
-      
-        e.x += (dx / dist) * e.speed;
-        e.y += (dy / dist) * e.speed;
-
-        ctx.fillStyle = e.color;
-        ctx.beginPath();
-        ctx.arc(e.x, e.y, e.size/2, 0, Math.PI*2);
-        ctx.fill();
-
-        if (e.isBoss) {
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(e.x-18, e.y-14, 14, 16);
-            ctx.fillRect(e.x+4, e.y-14, 14, 16);
-            ctx.fillStyle = '#ff0000';
-            ctx.fillRect(e.x-13, e.y-10, 6, 8);
-            ctx.fillRect(e.x+9, e.y-10, 6, 8);
-        } else {
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(e.x-8, e.y-6, 6, 8);
-            ctx.fillRect(e.x+2, e.y-6, 6, 8);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(e.x-6, e.y-4, 3, 4);
-            ctx.fillRect(e.x+4, e.y-4, 3, 4);
+        
+        // Salvar ranking
+        function saveRanking(ranking) {
+            localStorage.setItem('cobraRanking', JSON.stringify(ranking))
         }
-
-        // Colisão bala jogador × inimigo
-        for (let j = bullets.length-1; j >= 0; j--) {
-            const b = bullets[j];
-            if (Math.hypot(b.x - e.x, b.y - e.y) < e.size/2 + b.size/2) {
-                e.health--;
-                bullets.splice(j, 1);
-                createParticles(b.x, b.y, '#ffaaaa', 12);
-              
-                if (e.health <= 0) {
-                    createParticles(e.x, e.y, e.isBoss ? '#440000' : '#aa0000', e.isBoss ? 90 : 35);
-                    enemies.splice(i, 1);
-                    score += e.isBoss ? 500 : 20;
-                    killCount++;
-                    document.getElementById('kills').textContent = killCount;
-
-                    if (e.isBoss) {
-                        gameRunning = false;
-                        document.getElementById('victoryScore').textContent = score;
-                        document.getElementById('victory').style.display = 'block';
+        
+        // Fazer login
+        function fazerLogin() {
+            const usernameInput = document.getElementById('username').value.trim()
+            
+            if (!usernameInput) {
+                alert('Digite um nome de usuário!')
+                return
+            }
+            
+            currentUser = usernameInput
+            localStorage.setItem('currentUser', currentUser)
+            
+            // Esconde login e mostra menu
+            document.getElementById('login-screen').classList.add('hidden')
+            document.getElementById('menu-screen').classList.remove('hidden')
+            document.getElementById('menu-user').textContent = `👾 ${currentUser.toUpperCase()}`
+        }
+        
+        // Fazer logout
+        function fazerLogout() {
+            if (confirm('Deseja realmente sair?')) {
+                localStorage.removeItem('currentUser')
+                currentUser = ''
+                document.getElementById('menu-screen').classList.add('hidden')
+                document.getElementById('login-screen').classList.remove('hidden')
+                // limpa campos
+                document.getElementById('username').value = ''
+            }
+        }
+        
+        // Resetar variáveis do jogo
+        function resetGame() {
+            snake = [
+                { x: 12, y: 13 },
+                { x: 11, y: 13 },
+                { x: 10, y: 13 }
+            ]
+            dx = 1
+            dy = 0
+            score = 0
+            level = 1
+            lives = 3
+            foodsEatenThisLevel = 0
+            gameSpeed = 150
+            isPaused = false
+            gerarComida()
+        }
+        
+        // Gerar nova comida (não em cima da cobra)
+        function gerarComida() {
+            let newFood
+            do {
+                newFood = {
+                    x: Math.floor(Math.random() * tileCount),
+                    y: Math.floor(Math.random() * tileCount)
+                }
+            } while (snake.some(segment => segment.x === newFood.x && segment.y === newFood.y))
+            food = newFood
+        }
+        
+        // Desenhar tudo no canvas
+        function desenhar() {
+            // Fundo
+            ctx.fillStyle = '#0a0a0a'
+            ctx.fillRect(0, 0, canvas.width, canvas.height)
+            
+            // Grade sutil
+            ctx.strokeStyle = '#1a1a1a'
+            ctx.lineWidth = 1
+            for (let i = 0; i <= tileCount; i++) {
+                ctx.beginPath()
+                ctx.moveTo(i * gridSize, 0)
+                ctx.lineTo(i * gridSize, canvas.height)
+                ctx.stroke()
+                ctx.beginPath()
+                ctx.moveTo(0, i * gridSize)
+                ctx.lineTo(canvas.width, i * gridSize)
+                ctx.stroke()
+            }
+            
+            // Cobra
+            snake.forEach((segment, index) => {
+                if (index === 0) {
+                    // Cabeça
+                    ctx.fillStyle = '#22ff88'
+                    ctx.fillRect(segment.x * gridSize + 1, segment.y * gridSize + 1, gridSize - 2, gridSize - 2)
+                    // Olhos
+                    ctx.fillStyle = '#000'
+                    const eyeSize = 4
+                    if (dx === 1) { // direita
+                        ctx.fillRect(segment.x * gridSize + gridSize - 9, segment.y * gridSize + 5, eyeSize, eyeSize)
+                        ctx.fillRect(segment.x * gridSize + gridSize - 9, segment.y * gridSize + gridSize - 10, eyeSize, eyeSize)
+                    } else if (dx === -1) { // esquerda
+                        ctx.fillRect(segment.x * gridSize + 5, segment.y * gridSize + 5, eyeSize, eyeSize)
+                        ctx.fillRect(segment.x * gridSize + 5, segment.y * gridSize + gridSize - 10, eyeSize, eyeSize)
+                    } else if (dy === 1) { // baixo
+                        ctx.fillRect(segment.x * gridSize + 5, segment.y * gridSize + gridSize - 9, eyeSize, eyeSize)
+                        ctx.fillRect(segment.x * gridSize + gridSize - 10, segment.y * gridSize + gridSize - 9, eyeSize, eyeSize)
+                    } else if (dy === -1) { // cima
+                        ctx.fillRect(segment.x * gridSize + 5, segment.y * gridSize + 5, eyeSize, eyeSize)
+                        ctx.fillRect(segment.x * gridSize + gridSize - 10, segment.y * gridSize + 5, eyeSize, eyeSize)
                     }
-                    else if (killCount >= 30 && !bossSpawned) {
-                        spawnBoss();
-                    }
-                    break;
+                } else {
+                    // Corpo
+                    ctx.fillStyle = index % 2 === 0 ? '#22cc66' : '#11aa55'
+                    ctx.fillRect(segment.x * gridSize + 2, segment.y * gridSize + 2, gridSize - 4, gridSize - 4)
+                }
+            })
+            
+            // Comida
+            ctx.font = '22px Arial'
+            ctx.textAlign = 'center'
+            ctx.textBaseline = 'middle'
+            ctx.fillText('🍎', food.x * gridSize + gridSize / 2, food.y * gridSize + gridSize / 2 + 2)
+        }
+        
+        // Atualizar lógica do jogo
+        function atualizar() {
+            if (isPaused) return
+            
+            const head = { x: snake[0].x + dx, y: snake[0].y + dy }
+            
+            // Colisão com parede
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                morrer()
+                return
+            }
+            
+            // Colisão com o próprio corpo
+            for (let i = 0; i < snake.length; i++) {
+                if (snake[i].x === head.x && snake[i].y === head.y) {
+                    morrer()
+                    return
                 }
             }
+            
+            // Adiciona nova cabeça
+            snake.unshift(head)
+            
+            // Comeu a comida?
+            if (head.x === food.x && head.y === food.y) {
+                score += 10 * level
+                foodsEatenThisLevel++
+                
+                // Atualiza HUD
+                document.getElementById('hud-pontos').textContent = String(score).padStart(4, '0')
+                
+                // Level up?
+                if (foodsEatenThisLevel >= 5) {
+                    level++
+                    foodsEatenThisLevel = 0
+                    gameSpeed = Math.max(60, gameSpeed - 22)
+                    
+                    // Limpa intervalo antigo
+                    clearInterval(gameInterval)
+                    gameInterval = setInterval(gameLoop, gameSpeed)
+                    
+                    // Mostra overlay de fase
+                    const overlay = document.getElementById('level-up-overlay')
+                    document.getElementById('level-up-text').innerHTML = `FASE ${String(level).padStart(2, '0')}<br>VELOCIDADE AUMENTADA!`
+                    overlay.classList.remove('hidden')
+                    
+                    // Atualiza HUD
+                    document.getElementById('hud-fase').textContent = String(level).padStart(2, '0')
+                    document.getElementById('rodape-fase').textContent = String(level).padStart(2, '0')
+                }
+                
+                gerarComida()
+            } else {
+                snake.pop()
+            }
+            
+            desenhar()
         }
-
-        // Colisão jogador × inimigo
-        if (player.invincible <= 0 && Math.hypot(player.x - e.x, player.y - e.y) < (e.isBoss ? 48 : 25)) {
-            player.health -= e.isBoss ? 2 : 1;
-            player.invincible = 60;
-            createParticles(player.x, player.y, '#ff0000', 25);
-            document.getElementById('health').textContent = player.health;
-          
-            if (player.health <= 0) {
-                gameRunning = false;
-                document.getElementById('finalScore').textContent = score;
-                document.getElementById('gameOver').style.display = 'block';
+        
+        // Loop principal do jogo
+        function gameLoop() {
+            atualizar()
+        }
+        
+        // Quando a cobra morre
+        function morrer() {
+            lives--
+            atualizarVidas()
+            
+            if (lives > 0) {
+                // Reset posição mas mantém pontuação e fase
+                snake = [
+                    { x: 12, y: 13 },
+                    { x: 11, y: 13 },
+                    { x: 10, y: 13 }
+                ]
+                dx = 1
+                dy = 0
+                gerarComida()
+                desenhar()
+            } else {
+                // Game over total
+                clearInterval(gameInterval)
+                finalizarJogo()
             }
         }
-    }
-
-    if (player.invincible > 0) player.invincible--;
-
-    if (!bossSpawned && Math.random() < 0.045) spawnEnemy();
-
-    // Partículas
-    for (let i = particles.length-1; i >= 0; i--) {
-        const p = particles[i];
-        p.x += p.vx * 0.97;
-        p.y += p.vy * 0.97;
-        p.life--;
-        p.vx *= 0.96;
-        p.vy *= 0.96;
-      
-        ctx.globalAlpha = p.life / 40;
-        ctx.fillStyle = p.color;
-        ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
-        if (p.life <= 0) particles.splice(i, 1);
-    }
-    ctx.globalAlpha = 1;
-
-    document.getElementById('score').textContent = score;
-    requestAnimationFrame(gameLoop);
-}
-
-// Iniciar
-for (let i = 0; i < 4; i++) spawnEnemy();
-gameLoop();
-
-alert("The Binding of Isaac\n\nIsaac agora está em pixel art!\nBoss continua atirando em 4 direções.\n\nBoa sorte! 🔥");
-</script>
+        
+        // Atualiza display de vidas
+        function atualizarVidas() {
+            const container = document.getElementById('hud-vidas')
+            container.innerHTML = ''
+            for (let i = 0; i < 3; i++) {
+                const heart = document.createElement('span')
+                heart.textContent = i < lives ? '❤️' : '♡'
+                heart.className = i < lives ? 'text-red-500' : 'text-zinc-600'
+                container.appendChild(heart)
+            }
+        }
+        
+        // Iniciar o jogo
+        function iniciarJogo() {
+            document.getElementById('menu-screen').classList.add('hidden')
+            document.getElementById('game-screen').classList.remove('hidden')
+            
+            // Configura canvas
+            canvas = document.getElementById('game-canvas')
+            ctx = canvas.getContext('2d')
+            
+            resetGame()
+            
+            // HUD inicial
+            document.getElementById('hud-user').textContent = currentUser.toUpperCase()
+            document.getElementById('hud-fase').textContent = String(level).padStart(2, '0')
+            document.getElementById('hud-pontos').textContent = '0000'
+            document.getElementById('rodape-fase').textContent = String(level).padStart(2, '0')
+            atualizarVidas()
+            
+            desenhar()
+            
+            // Inicia o loop
+            if (gameInterval) clearInterval(gameInterval)
+            gameInterval = setInterval(gameLoop, gameSpeed)
+            
+            // Controles do teclado
+            window.addEventListener('keydown', controlarTeclado)
+        }
+        
+        // Controles do teclado
+        function controlarTeclado(e) {
+            if (document.getElementById('game-screen').classList.contains('hidden')) return
+            
+            switch (e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    if (dy !== 1) { dx = 0; dy = -1 }
+                    break
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    if (dy !== -1) { dx = 0; dy = 1 }
+                    break
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    if (dx !== 1) { dx = -1; dy = 0 }
+                    break
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    if (dx !== -1) { dx = 1; dy = 0 }
+                    break
+                case 'p':
+                case 'P':
+                    pausarJogo()
+                    break
+            }
+        }
+        
+        // Pausar jogo
+        function pausarJogo() {
+            isPaused = !isPaused
+            const btn = document.querySelector('#game-screen button')
+            if (isPaused) {
+                btn.textContent = 'RESUME'
+                btn.classList.add('bg-yellow-400', 'text-black')
+            } else {
+                btn.textContent = 'PAUSE'
+                btn.classList.remove('bg-yellow-400', 'text-black')
+            }
+        }
+        
+        // Finalizar jogo (game over)
+        function finalizarJogo() {
+            const overlay = document.getElementById('game-over-overlay')
+            document.getElementById('final-score').textContent = String(score).padStart(4, '0')
+            overlay.classList.remove('hidden')
+            
+            // Salvar no ranking
+            const ranking = getRanking()
+            ranking.push({
+                nome: currentUser,
+                pontos: score,
+                data: new Date().toLocaleDateString('pt-BR')
+            })
+            
+            // Ordenar e manter só os 10 melhores
+            ranking.sort((a, b) => b.pontos - a.pontos)
+            saveRanking(ranking.slice(0, 10))
+        }
+        
+        // Reiniciar jogo após game over
+        function reiniciarJogo() {
+            document.getElementById('game-over-overlay').classList.add('hidden')
+            resetGame()
+            atualizarVidas()
+            document.getElementById('hud-pontos').textContent = '0000'
+            document.getElementById('hud-fase').textContent = '01'
+            document.getElementById('rodape-fase').textContent = '01'
+            desenhar()
+            if (gameInterval) clearInterval(gameInterval)
+            gameInterval = setInterval(gameLoop, gameSpeed)
+        }
+        
+        // Voltar ao menu principal
+        function voltarAoMenu() {
+            // Para qualquer tela ativa
+            const allScreens = ['game-screen', 'ranking-screen', 'game-over-overlay']
+            allScreens.forEach(id => {
+                const el = document.getElementById(id)
+                if (el) el.classList.add('hidden')
+            })
+            
+            if (gameInterval) {
+                clearInterval(gameInterval)
+                gameInterval = null
+            }
+            
+            document.getElementById('menu-screen').classList.remove('hidden')
+            window.removeEventListener('keydown', controlarTeclado)
+        }
+        
+        // Mostrar ranking
+        function mostrarRanking() {
+            document.getElementById('menu-screen').classList.add('hidden')
+            const rankingScreen = document.getElementById('ranking-screen')
+            rankingScreen.classList.remove('hidden')
+            
+            const tbody = document.getElementById('ranking-body')
+            tbody.innerHTML = ''
+            
+            const ranking = getRanking()
+            
+            if (ranking.length === 0) {
+                const row = document.createElement('tr')
+                row.innerHTML = `<td colspan="3" class="px-10 py-12 text-center text-zinc-500">Nenhum jogador ainda... seja o primeiro!</td>`
+                tbody.appendChild(row)
+                return
+            }
+            
+            ranking.forEach((item, index) => {
+                const row = document.createElement('tr')
+                row.className = index % 2 === 0 ? 'bg-zinc-950' : 'bg-zinc-900'
+                row.innerHTML = `
+                    <td class="px-10 py-6 font-bold text-emerald-400">#${index + 1}</td>
+                    <td class="px-10 py-6">${item.nome}</td>
+                    <td class="px-10 py-6 text-right text-sky-400">${String(item.pontos).padStart(4, '0')}</td>
+                `
+                tbody.appendChild(row)
+            })
+        }
+        
+        // Limpar ranking
+        function limparRanking() {
+            if (confirm('Tem certeza que deseja apagar TODO o ranking?')) {
+                localStorage.removeItem('cobraRanking')
+                mostrarRanking()
+            }
+        }
+        
+        // Inicializa o sistema quando a página carrega
+        window.onload = function () {
+            // Verifica se já tem usuário logado
+            const savedUser = localStorage.getItem('currentUser')
+            if (savedUser) {
+                currentUser = savedUser
+                document.getElementById('login-screen').classList.add('hidden')
+                document.getElementById('menu-screen').classList.remove('hidden')
+                document.getElementById('menu-user').textContent = `👾 ${currentUser.toUpperCase()}`
+            }
+            
+            console.log('%c✅ Jogo da Cobra carregado com sucesso! Tudo em um único arquivo HTML.', 'color:#22ff88; font-family:monospace')
+            console.log('Perfeito para subir no GitHub Pages 🚀')
+        }
+    </script>
+</body>
+</html>
