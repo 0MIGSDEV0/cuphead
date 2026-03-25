@@ -20,31 +20,26 @@
 </style>
 </head>
 <body>
-
 <div id="ui">
     <strong>THE BINDING OF ISAAC</strong><br>
-    Vida: ❤️ <span id="health">3</span> &nbsp;&nbsp; 
+    Vida: ❤️ <span id="health">3</span> &nbsp;&nbsp;
     Score: <span id="score">0</span><br>
     Mortes: <span id="kills">0</span>/30
     <small style="display:block; margin-top:5px;">
         WASD = mover | Mouse ou Setas = atirar
     </small>
 </div>
-
 <canvas id="game" width="800" height="600"></canvas>
-
 <div id="gameOver">
     <h1>GAME OVER</h1>
     <p>Score final: <span id="finalScore">0</span></p>
     <button onclick="location.reload()">Jogar Novamente</button>
 </div>
-
 <script>
 // ====================== SETUP ======================
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = 800, H = 600;
-
 let player = { x: W/2, y: H/2, size: 28, speed: 4.2, health: 3, invincible: 0 };
 let keys = {};
 let mouse = { x: W/2, y: H/2, down: false };
@@ -52,30 +47,28 @@ let bullets = [];
 let enemies = [];
 let particles = [];
 let score = 0;
-let killCount = 0;          // ← NOVO: contador de mortes
+let killCount = 0;
 let bossSpawned = false;
 let gameRunning = true;
 let lastShot = 0;
 
 // ====================== INPUT ======================
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
-window.addEventListener('keyup',   e => keys[e.key.toLowerCase()] = false);
-
+window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
     mouse.x = e.clientX - rect.left;
     mouse.y = e.clientY - rect.top;
 });
-
 canvas.addEventListener('mousedown', () => mouse.down = true);
-canvas.addEventListener('mouseup',   () => mouse.down = false);
+canvas.addEventListener('mouseup', () => mouse.down = false);
 
 // ====================== TIRO ======================
 function shoot(angle) {
     const now = Date.now();
     if (now - lastShot < 160) return;
     lastShot = now;
-    
+   
     bullets.push({
         x: player.x,
         y: player.y - 8,
@@ -84,7 +77,7 @@ function shoot(angle) {
         life: 48,
         size: 9
     });
-    
+   
     createParticles(player.x, player.y - 12, '#aaddff', 5);
 }
 
@@ -104,10 +97,10 @@ function createParticles(x, y, color, count) {
     }
 }
 
-// ====================== INIMIGOS NORMAIS ======================
+// ====================== INIMIGOS (AMARELO) ======================
 function spawnEnemy() {
     if (enemies.length > 9 || bossSpawned) return;
-    
+   
     const angle = Math.random() * Math.PI * 2;
     const dist = 360;
     enemies.push({
@@ -116,35 +109,31 @@ function spawnEnemy() {
         size: 26,
         speed: 1.7 + Math.random() * 0.6,
         health: 3,
-        color: '#c22',
+        color: '#f8c030',     // ← Amarelo (como o seu sprite)
         isBoss: false
     });
 }
 
-// ====================== BOSS ======================
+// ====================== BOSS (ROXO) ======================
 function spawnBoss() {
     if (bossSpawned) return;
     bossSpawned = true;
-
     enemies.push({
         x: W/2,
         y: 120,
-        size: 68,           // bem maior
+        size: 68,
         speed: 1.1,
-        health: 45,         // muita vida
-        color: '#800000',
+        health: 45,
+        color: '#8b00ff',     // ← Roxo escuro (como o seu sprite)
         isBoss: true
     });
-
-    createParticles(W/2, 120, '#ff0000', 60);
+    createParticles(W/2, 120, '#c060ff', 60);
 }
 
 // ====================== LOOP ======================
 const clock = { last: Date.now() };
-
 function gameLoop() {
     if (!gameRunning) return;
-
     const now = Date.now();
     const delta = (now - clock.last) / 16;
     clock.last = now;
@@ -152,36 +141,33 @@ function gameLoop() {
     // Fundo
     ctx.fillStyle = '#1a0f08';
     ctx.fillRect(0, 0, W, H);
-    
+   
     // Chão
     ctx.fillStyle = '#3a2a1f';
     for (let i = 0; i < 45; i++) {
         ctx.fillRect((i*47)%W, (i*39)%H, 26, 26);
     }
 
-    // Movimento jogador (WASD)
+    // Movimento jogador
     let dx = 0, dy = 0;
     if (keys['w']) dy -= 1;
     if (keys['s']) dy += 1;
     if (keys['a']) dx -= 1;
     if (keys['d']) dx += 1;
-
     if (dx !== 0 || dy !== 0) {
         const len = Math.hypot(dx, dy);
         player.x += (dx / len) * player.speed;
         player.y += (dy / len) * player.speed;
     }
-
     player.x = Math.max(30, Math.min(W-30, player.x));
     player.y = Math.max(30, Math.min(H-30, player.y));
 
-    // Tiro com setas
-    if (keys['arrowup'])    shoot(-Math.PI/2);
-    if (keys['arrowdown'])  shoot( Math.PI/2);
-    if (keys['arrowleft'])  shoot( Math.PI);
-    if (keys['arrowright']) shoot( 0);
+    // Tiro
+    if (keys['arrowup']) shoot(-Math.PI/2);
+    if (keys['arrowdown']) shoot(Math.PI/2);
+    if (keys['arrowleft']) shoot(Math.PI);
+    if (keys['arrowright']) shoot(0);
 
-    // Tiro com mouse
     if (mouse.down) {
         const dxm = mouse.x - player.x;
         const dym = mouse.y - player.y;
@@ -203,48 +189,47 @@ function gameLoop() {
     ctx.fillRect(-5, -19, 3, 3); ctx.fillRect(3, -19, 3, 3);
     ctx.restore();
 
-    // === BALAS ===
+    // Balas
     for (let i = bullets.length-1; i >= 0; i--) {
         const b = bullets[i];
         b.x += b.vx; b.y += b.vy; b.life--;
-
         const alpha = b.life / 48;
         ctx.globalAlpha = alpha;
         ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.size/2 + 3, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#bbddff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.size/2, 0, Math.PI*2); ctx.fill();
         ctx.globalAlpha = 1;
-
         if (b.life <= 0 || b.x < -30 || b.x > W+30 || b.y < -30 || b.y > H+30) {
             bullets.splice(i, 1);
         }
     }
 
-    // === INIMIGOS + BOSS ===
+    // Inimigos + Boss
     for (let i = enemies.length-1; i >= 0; i--) {
         const e = enemies[i];
-        
+       
         const dx = player.x - e.x;
         const dy = player.y - e.y;
         const dist = Math.hypot(dx, dy) || 1;
-        
+       
         e.x += (dx / dist) * e.speed;
         e.y += (dy / dist) * e.speed;
 
-        // Desenho
+        // Desenho do inimigo
         ctx.fillStyle = e.color;
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.size/2, 0, Math.PI*2);
         ctx.fill();
 
         if (e.isBoss) {
-            // Olhos maiores e mais assustadores
+            // Boss roxo - olhos mais assustadores
             ctx.fillStyle = '#fff';
             ctx.fillRect(e.x-18, e.y-12, 12, 14);
-            ctx.fillRect(e.x+6,  e.y-12, 12, 14);
-            ctx.fillStyle = '#f00';
+            ctx.fillRect(e.x+6, e.y-12, 12, 14);
+            ctx.fillStyle = '#00ffff';
             ctx.fillRect(e.x-14, e.y-8, 5, 7);
             ctx.fillRect(e.x+10, e.y-8, 5, 7);
         } else {
+            // Inimigos amarelos - olhos normais
             ctx.fillStyle = '#fff';
             ctx.fillRect(e.x-8, e.y-6, 6, 8);
             ctx.fillRect(e.x+2, e.y-6, 6, 8);
@@ -260,16 +245,14 @@ function gameLoop() {
                 e.health--;
                 bullets.splice(j, 1);
                 createParticles(b.x, b.y, '#ffaaaa', 12);
-                
+               
                 if (e.health <= 0) {
-                    createParticles(e.x, e.y, e.isBoss ? '#ff0000' : '#aa0000', e.isBoss ? 80 : 35);
+                    createParticles(e.x, e.y, e.isBoss ? '#c060ff' : '#ffdd44', e.isBoss ? 80 : 35);
                     enemies.splice(i, 1);
                     score += e.isBoss ? 300 : 20;
                     killCount++;
-
                     document.getElementById('kills').textContent = killCount;
 
-                    // Spawn do Boss ao atingir 30 kills
                     if (killCount >= 30 && !bossSpawned) {
                         spawnBoss();
                     }
@@ -280,11 +263,11 @@ function gameLoop() {
 
         // Colisão jogador × inimigo
         if (player.invincible <= 0 && Math.hypot(player.x - e.x, player.y - e.y) < (e.isBoss ? 45 : 25)) {
-            player.health -= e.isBoss ? 2 : 1;   // Boss tira 2 de vida
+            player.health -= e.isBoss ? 2 : 1;
             player.invincible = 60;
             createParticles(player.x, player.y, '#ff0000', 25);
             document.getElementById('health').textContent = player.health;
-            
+           
             if (player.health <= 0) {
                 gameRunning = false;
                 document.getElementById('finalScore').textContent = score;
@@ -295,7 +278,7 @@ function gameLoop() {
 
     if (player.invincible > 0) player.invincible--;
 
-    // Spawn de inimigos normais
+    // Spawn de inimigos amarelos
     if (!bossSpawned && Math.random() < 0.045) spawnEnemy();
 
     // Partículas
@@ -306,7 +289,7 @@ function gameLoop() {
         p.life--;
         p.vx *= 0.96;
         p.vy *= 0.96;
-        
+       
         ctx.globalAlpha = p.life / 40;
         ctx.fillStyle = p.color;
         ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
@@ -315,7 +298,6 @@ function gameLoop() {
     ctx.globalAlpha = 1;
 
     document.getElementById('score').textContent = score;
-
     requestAnimationFrame(gameLoop);
 }
 
@@ -323,7 +305,7 @@ function gameLoop() {
 for (let i = 0; i < 4; i++) spawnEnemy();
 gameLoop();
 
-alert("The Binding of Isaac - Versão com Boss!\n\nChegue a 30 mortes para invocar o Boss Gigante!\n\nBoa sorte! 🔥");
+alert("The Binding of Isaac - Versão com Boss!\n\nInimigos agora são amarelos!\nBoss agora é roxo!\nChegue a 30 kills para invocar o Boss Gigante!\n\nBoa sorte! 🔥");
 </script>
 </body>
 </html>
