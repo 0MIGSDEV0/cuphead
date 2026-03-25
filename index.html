@@ -1,14 +1,67 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>The Binding of Isaac - Versão Corrigida + Boss</title>
+<style>
+    body { margin:0; overflow:hidden; background:#000; font-family:Arial; }
+    canvas { display:block; margin:0 auto; image-rendering: pixelated; }
+    #ui {
+        position: absolute; top: 10px; left: 10px; color: white; z-index: 100;
+        background: rgba(0,0,0,0.7); padding: 12px 18px; border-radius: 10px; font-size: 18px;
+    }
+    #gameOver, #victory {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: rgba(20,0,0,0.95); color: #ff6666; padding: 40px; border-radius: 20px;
+        text-align: center; display: none; border: 4px solid #aa0000;
+    }
+    #victory {
+        background: rgba(0,20,0,0.95);
+        color: #66ff66;
+        border: 4px solid #00aa00;
+    }
+    button {
+        padding: 12px 30px; font-size: 20px; background:#aa0000; color:white;
+        border:none; border-radius:8px; cursor:pointer; margin-top: 15px;
+    }
+    button:hover { background:#ff0000; }
+    #victory button { background:#00aa00; }
+    #victory button:hover { background:#00ff00; }
+</style>
+</head>
+<body>
+<div id="ui">
+    <strong>THE BINDING OF ISAAC</strong><br>
+    Vida: ❤️ <span id="health">3</span> &nbsp;&nbsp;
+    Score: <span id="score">0</span><br>
+    Mortes: <span id="kills">0</span>/30
+    <small style="display:block; margin-top:5px;">
+        WASD = mover | Mouse ou Setas = atirar
+    </small>
+</div>
+<canvas id="game" width="800" height="600"></canvas>
+<!-- Game Over -->
+<div id="gameOver">
+    <h1>GAME OVER</h1>
+    <p>Score final: <span id="finalScore">0</span></p>
+    <button onclick="location.reload()">Jogar Novamente</button>
+</div>
+<!-- Victory Screen -->
+<div id="victory">
+    <h1>🎉 VITÓRIA! 🎉</h1>
+    <p>Você derrotou o Boss!</p>
+    <p>Score final: <span id="victoryScore">0</span></p>
+    <button onclick="location.reload()">Jogar Novamente</button>
+</div>
 <script>
 // ====================== SETUP ======================
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = 800, H = 600;
-
 let player = { x: W/2, y: H/2, size: 32, speed: 4.2, health: 3, invincible: 0 };
 let keys = {};
 let mouse = { x: W/2, y: H/2, down: false };
-let bullets = [];        // tiros do jogador (azuis)
-let bossBullets = [];    // ← NOVO: tiros do boss (vermelhos)
+let bullets = [];
 let enemies = [];
 let particles = [];
 let score = 0;
@@ -16,8 +69,6 @@ let killCount = 0;
 let bossSpawned = false;
 let gameRunning = true;
 let lastShot = 0;
-let lastBossShot = 0;    // ← NOVO
-
 // ====================== INPUT ======================
 window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
@@ -28,8 +79,7 @@ canvas.addEventListener('mousemove', e => {
 });
 canvas.addEventListener('mousedown', () => mouse.down = true);
 canvas.addEventListener('mouseup', () => mouse.down = false);
-
-// ====================== TIRO DO JOGADOR ======================
+// ====================== TIRO ======================
 function shoot(angle) {
     const now = Date.now();
     if (now - lastShot < 160) return;
@@ -46,32 +96,6 @@ function shoot(angle) {
   
     createParticles(player.x, player.y - 12, '#aaddff', 5);
 }
-
-// ====================== TIRO DO BOSS (NOVO) ======================
-function bossShoot() {
-    if (!bossSpawned) return;
-    
-    const now = Date.now();
-    if (now - lastBossShot < 1800) return; // atira a cada ~1.8 segundos
-    lastBossShot = now;
-
-    const directions = [0, Math.PI/2, Math.PI, -Math.PI/2]; // direita, baixo, esquerda, cima
-
-    directions.forEach(angle => {
-        bossBullets.push({
-            x: enemies.find(e => e.isBoss).x,
-            y: enemies.find(e => e.isBoss).y,
-            vx: Math.cos(angle) * 5.5,   // mais lento que o do jogador
-            vy: Math.sin(angle) * 5.5,
-            life: 90,
-            size: 14
-        });
-    });
-
-    createParticles(enemies.find(e => e.isBoss).x, 
-                   enemies.find(e => e.isBoss).y, '#ff4444', 15);
-}
-
 // ====================== PARTÍCULAS ======================
 function createParticles(x, y, color, count) {
     for (let i = 0; i < count; i++) {
@@ -87,7 +111,6 @@ function createParticles(x, y, color, count) {
         });
     }
 }
-
 // ====================== INIMIGOS NORMAIS ======================
 function spawnEnemy() {
     if (enemies.length > 9 || bossSpawned) return;
@@ -104,8 +127,7 @@ function spawnEnemy() {
         isBoss: false
     });
 }
-
-// ====================== BOSS ======================
+// ====================== BOSS (preto com olhos vermelhos) ======================
 function spawnBoss() {
     if (bossSpawned) return;
     bossSpawned = true;
@@ -119,13 +141,13 @@ function spawnBoss() {
         isBoss: true
     });
     createParticles(W/2, 120, '#ff0000', 60);
-    lastBossShot = Date.now(); // inicia o contador de tiro do boss
 }
-
 // ====================== LOOP ======================
+const clock = { last: Date.now() };
 function gameLoop() {
     if (!gameRunning) return;
-  
+    const now = Date.now();
+    clock.last = now;
     // Fundo
     ctx.fillStyle = '#1a0f08';
     ctx.fillRect(0, 0, W, H);
@@ -135,7 +157,6 @@ function gameLoop() {
     for (let i = 0; i < 45; i++) {
         ctx.fillRect((i*47)%W, (i*39)%H, 26, 26);
     }
-
     // Movimento jogador
     let dx = 0, dy = 0;
     if (keys['w']) dy -= 1;
@@ -149,8 +170,7 @@ function gameLoop() {
     }
     player.x = Math.max(30, Math.min(W-30, player.x));
     player.y = Math.max(30, Math.min(H-30, player.y));
-
-    // Tiro do jogador
+    // Tiro
     if (keys['arrowup']) shoot(-Math.PI/2);
     if (keys['arrowdown']) shoot(Math.PI/2);
     if (keys['arrowleft']) shoot(Math.PI);
@@ -161,42 +181,38 @@ function gameLoop() {
         const angle = Math.atan2(dym, dxm);
         shoot(angle);
     }
-
-    // === BOSS ATIRA ===
-    if (bossSpawned) bossShoot();
-
-    // ====================== DESENHAR JOGADOR ======================
+    // ==================== DESENHAR O NOVO PLAYER ====================
     ctx.save();
     ctx.translate(player.x, player.y);
+    // Cabeça grande (rosa claro)
     ctx.fillStyle = '#f4b8b0';
-    ctx.fillRect(-16, -22, 32, 28);
+    ctx.fillRect(-16, -22, 32, 28); // topo da cabeça
     ctx.beginPath();
     ctx.ellipse(0, -10, 18, 22, 0, 0, Math.PI*2);
     ctx.fill();
-
+    // Olhos
     ctx.fillStyle = '#000000';
-    ctx.fillRect(-11, -14, 8, 10);
-    ctx.fillRect( 3, -14, 8, 10);
+    ctx.fillRect(-11, -14, 8, 10); // olho esquerdo
+    ctx.fillRect( 3, -14, 8, 10); // olho direito
     ctx.fillStyle = '#ffffff';
-    ctx.fillRect(-9, -13, 4, 5);
-    ctx.fillRect( 5, -13, 4, 5);
-
+    ctx.fillRect(-9, -13, 4, 5); // brilho olho esquerdo
+    ctx.fillRect( 5, -13, 4, 5); // brilho olho direito
+    // Boca (triste)
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(-6, -3, 12, 3);
-
+    // Lágrimas
     ctx.fillStyle = '#88ddff';
-    ctx.fillRect(-12, -2, 4, 7);
-    ctx.fillRect( 8, -2, 4, 7);
-
+    ctx.fillRect(-12, -2, 4, 7); // lágrima esquerda
+    ctx.fillRect( 8, -2, 4, 7); // lágrima direita
+    // Corpo / roupinha preta
     ctx.fillStyle = '#1a1a1a';
     ctx.fillRect(-13, 8, 26, 18);
-
+    // Pernas
     ctx.fillStyle = '#f4b8b0';
-    ctx.fillRect(-10, 24, 7, 10);
-    ctx.fillRect( 3, 24, 7, 10);
+    ctx.fillRect(-10, 24, 7, 10); // perna esquerda
+    ctx.fillRect( 3, 24, 7, 10); // perna direita
     ctx.restore();
-
-    // ====================== TIROS DO JOGADOR ======================
+    // ====================== BALAS ======================
     for (let i = bullets.length-1; i >= 0; i--) {
         const b = bullets[i];
         b.x += b.vx; b.y += b.vy; b.life--;
@@ -205,51 +221,10 @@ function gameLoop() {
         ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.size/2 + 3, 0, Math.PI*2); ctx.fill();
         ctx.fillStyle = '#bbddff'; ctx.beginPath(); ctx.arc(b.x, b.y, b.size/2, 0, Math.PI*2); ctx.fill();
         ctx.globalAlpha = 1;
-
         if (b.life <= 0 || b.x < -30 || b.x > W+30 || b.y < -30 || b.y > H+30) {
             bullets.splice(i, 1);
         }
     }
-
-    // ====================== TIROS DO BOSS (NOVO) ======================
-    for (let i = bossBullets.length-1; i >= 0; i--) {
-        const b = bossBullets[i];
-        b.x += b.vx;
-        b.y += b.vy;
-        b.life--;
-
-        ctx.globalAlpha = b.life / 90;
-        ctx.fillStyle = '#ff0000';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.size/2 + 2, 0, Math.PI*2);
-        ctx.fill();
-        ctx.fillStyle = '#ff6666';
-        ctx.beginPath();
-        ctx.arc(b.x, b.y, b.size/2, 0, Math.PI*2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-
-        // Colisão com o jogador
-        if (player.invincible <= 0 && Math.hypot(player.x - b.x, player.y - b.y) < b.size/2 + 16) {
-            player.health -= 2;
-            player.invincible = 60;
-            createParticles(player.x, player.y, '#ff0000', 30);
-            document.getElementById('health').textContent = player.health;
-
-            if (player.health <= 0) {
-                gameRunning = false;
-                document.getElementById('finalScore').textContent = score;
-                document.getElementById('gameOver').style.display = 'block';
-            }
-            bossBullets.splice(i, 1);
-            continue;
-        }
-
-        if (b.life <= 0 || b.x < -50 || b.x > W+50 || b.y < -50 || b.y > H+50) {
-            bossBullets.splice(i, 1);
-        }
-    }
-
     // ====================== INIMIGOS ======================
     for (let i = enemies.length-1; i >= 0; i--) {
         const e = enemies[i];
@@ -260,13 +235,12 @@ function gameLoop() {
       
         e.x += (dx / dist) * e.speed;
         e.y += (dy / dist) * e.speed;
-
         ctx.fillStyle = e.color;
         ctx.beginPath();
         ctx.arc(e.x, e.y, e.size/2, 0, Math.PI*2);
         ctx.fill();
-
         if (e.isBoss) {
+            // Boss preto - olhos vermelhos
             ctx.fillStyle = '#fff';
             ctx.fillRect(e.x-18, e.y-14, 14, 16);
             ctx.fillRect(e.x+4, e.y-14, 14, 16);
@@ -281,8 +255,7 @@ function gameLoop() {
             ctx.fillRect(e.x-6, e.y-4, 3, 4);
             ctx.fillRect(e.x+4, e.y-4, 3, 4);
         }
-
-        // Colisão bala do jogador × inimigo
+        // Colisão bala × inimigo
         for (let j = bullets.length-1; j >= 0; j--) {
             const b = bullets[j];
             if (Math.hypot(b.x - e.x, b.y - e.y) < e.size/2 + b.size/2) {
@@ -296,7 +269,6 @@ function gameLoop() {
                     score += e.isBoss ? 500 : 20;
                     killCount++;
                     document.getElementById('kills').textContent = killCount;
-
                     if (e.isBoss) {
                         gameRunning = false;
                         document.getElementById('victoryScore').textContent = score;
@@ -309,7 +281,6 @@ function gameLoop() {
                 }
             }
         }
-
         // Colisão jogador × inimigo
         if (player.invincible <= 0 && Math.hypot(player.x - e.x, player.y - e.y) < (e.isBoss ? 48 : 25)) {
             player.health -= e.isBoss ? 2 : 1;
@@ -324,11 +295,8 @@ function gameLoop() {
             }
         }
     }
-
     if (player.invincible > 0) player.invincible--;
-
     if (!bossSpawned && Math.random() < 0.045) spawnEnemy();
-
     // Partículas
     for (let i = particles.length-1; i >= 0; i--) {
         const p = particles[i];
@@ -344,14 +312,13 @@ function gameLoop() {
         if (p.life <= 0) particles.splice(i, 1);
     }
     ctx.globalAlpha = 1;
-
     document.getElementById('score').textContent = score;
     requestAnimationFrame(gameLoop);
 }
-
 // Iniciar jogo
 for (let i = 0; i < 4; i++) spawnEnemy();
 gameLoop();
-
-alert("The Binding of Isaac\n\nAgora o Boss atira em 4 direções!\nCuidado com os tiros vermelhos!\n\nBoa sorte! 🔥");
+alert("The Binding of Isaac\n\nAgora você é o Isaac chorando!\nChegue a 30 kills → Boss Preto\nDerrote ele para vencer!\n\nBoa sorte! 🔥");
 </script>
+</body>
+</html>
